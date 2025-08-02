@@ -1,0 +1,17 @@
+[package]
+name = "atomic_swap_sui"
+version = "1.0.0"
+edition = "2024.alpha"
+authors = ["Atomic Swap Protocol Team"]
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/mainnet" }
+
+[addresses]
+atomic_swap_sui = "0x0"
+
+[dev-dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+
+[dev-addresses]
+atomic_swap_sui = "0x0"

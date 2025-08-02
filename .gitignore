@@ -1,0 +1,174 @@
+# Atomic Swap Protocol - Git Ignore Configuration
+
+# ==========================================
+# Node.js Dependencies
+# ==========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# ==========================================
+# Environment Variables
+# ==========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.example.local
+
+# ==========================================
+# Build Outputs
+# ==========================================
+dist/
+build/
+out/
+.next/
+.nuxt/
+.vuepress/dist/
+
+# ==========================================
+# TypeScript
+# ==========================================
+*.tsbuildinfo
+.tscache/
+
+# ==========================================
+# Ethereum/Foundry
+# ==========================================
+protocols/ethereum_side/cache/
+protocols/ethereum_side/out/
+protocols/ethereum_side/broadcast/
+protocols/ethereum_side/lib/forge-std/
+protocols/ethereum_side/lib/openzeppelin-contracts/
+.gas-snapshot
+.env.forge
+
+# ==========================================
+# Sui Move
+# ==========================================
+protocols/sui_side/build/
+Move.lock
+
+# ==========================================
+# IDEs and Editors
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Logs
+# ==========================================
+logs/
+*.log
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ==========================================
+# Runtime Data
+# ==========================================
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ==========================================
+# Coverage Reports
+# ==========================================
+coverage/
+*.lcov
+.nyc_output/
+
+# ==========================================
+# Dependency Directories
+# ==========================================
+jspm_packages/
+bower_components/
+
+# ==========================================
+# Optional npm cache directory
+# ==========================================
+.npm/
+.eslintcache
+
+# ==========================================
+# Optional REPL history
+# ==========================================
+.node_repl_history
+
+# ==========================================
+# Yarn Integrity file
+# ==========================================
+.yarn-integrity
+
+# ==========================================
+# Temporary Folders
+# ==========================================
+tmp/
+temp/
+
+# ==========================================
+# Application Specific
+# ==========================================
+# Keep example configs but ignore actual configs
+!.env.example
+
+# Ignore deployment artifacts
+deployment-artifacts/
+*.deployed
+
+# Ignore private keys and sensitive data
+*.key
+*.pem
+private/
+secrets/
+
+# ==========================================
+# OS Generated Files
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==========================================
+# Backup Files
+# ==========================================
+*.bak
+*.backup
+*.old
+*.orig
+
+# ==========================================
+# Documentation Build
+# ==========================================
+docs/_build/
+docs/node_modules/
+
+# ==========================================
+# Test Artifacts
+# ==========================================
+test-results/
+test-reports/
+screenshots/
+videos/
+
+# ==========================================
+# Package Manager Files
+# ==========================================
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

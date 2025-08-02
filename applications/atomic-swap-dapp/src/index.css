@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --atomic-primary: #6366f1;
+  --atomic-secondary: #8b5cf6;
+  --atomic-accent: #06b6d4;
+  --atomic-success: #10b981;
+  --atomic-warning: #f59e0b;
+  --atomic-error: #ef4444;
+  --atomic-dark: #1e293b;
+  --atomic-light: #f8fafc;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  color: white;
+}
+
+.atomic-gradient {
+  background: linear-gradient(135deg, var(--atomic-primary) 0%, var(--atomic-secondary) 100%);
+}
+
+.atomic-glow {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+}
+
+.atomic-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+}
+
+.atomic-button {
+  background: linear-gradient(135deg, var(--atomic-primary) 0%, var(--atomic-secondary) 100%);
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.atomic-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+}
+
+.atomic-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.atomic-input {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: white;
+  font-size: 16px;
+  width: 100%;
+  transition: all 0.3s ease;
+}
+
+.atomic-input:focus {
+  outline: none;
+  border-color: var(--atomic-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.atomic-input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+@keyframes atomic-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.atomic-pulse {
+  animation: atomic-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes atomic-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.atomic-spin {
+  animation: atomic-spin 1s linear infinite;
+}
+
+.atomic-text-gradient {
+  background: linear-gradient(135deg, var(--atomic-primary) 0%, var(--atomic-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
