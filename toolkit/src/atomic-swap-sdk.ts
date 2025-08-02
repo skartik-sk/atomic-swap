@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
-import { Connection, Ed25519Keypair, JsonRpcProvider, RawSigner, TransactionBlock } from '@mysten/sui.js/client';
+import { Connection, Ed25519Keypair, SuiClient, fromB64 } from '@mysten/sui/client';
+import { TransactionBlock } from '@mysten/sui/transactions';
 import { BCS, getSuiMoveConfig } from '@mysten/bcs';
 import * as dotenv from 'dotenv';
 

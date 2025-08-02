@@ -68,7 +68,7 @@ export interface AtomicSwapState {
 // Create Zustand Store
 export const useAtomicSwapStore = create<AtomicSwapState>()(
   devtools(
-    (set, get) => ({
+    (set) => ({
       // Initial State
       isEthereumConnected: false,
       isSuiConnected: false,

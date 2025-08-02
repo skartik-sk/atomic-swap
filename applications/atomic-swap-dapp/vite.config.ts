@@ -31,13 +31,12 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom'],
           ethereum: ['ethers', 'wagmi', '@rainbow-me/rainbowkit'],
-          sui: ['@mysten/sui.js'],
           ui: ['framer-motion', 'lucide-react', 'recharts'],
         },
       },
     },
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'ethers', '@mysten/sui.js'],
+    include: ['react', 'react-dom', 'ethers'],
   },
 })
