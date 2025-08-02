@@ -4,7 +4,41 @@ import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'safe-wallet-stub',
+      resolveId(id) {
+        if (id === '@safe-globalThis/safe-apps-provider') {
+          return 'virtual:safe-apps-provider'
+        }
+        if (id === '@safe-globalThis/safe-apps-sdk') {
+          return 'virtual:safe-apps-sdk'
+        }
+      },
+      load(id) {
+        if (id === 'virtual:safe-apps-provider') {
+          return `
+            export class SafeAppProvider {
+              constructor() {}
+              connect() { return Promise.resolve() }
+              disconnect() { return Promise.resolve() }
+            }
+            export default SafeAppProvider
+          `
+        }
+        if (id === 'virtual:safe-apps-sdk') {
+          return `
+            export default class SafeAppsSDK {
+              constructor() {}
+              getSafeInfo() { return Promise.resolve({}) }
+              getSafeAddress() { return Promise.resolve('') }
+            }
+          `
+        }
+      }
+    }
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -30,10 +64,6 @@ export default defineConfig({
       transformMixedEsModules: true,
     },
     rollupOptions: {
-      external: [
-        '@safe-globalThis/safe-apps-provider',
-        '@safe-globalThis/safe-apps-sdk'
-      ],
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
