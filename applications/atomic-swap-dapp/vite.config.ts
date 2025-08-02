@@ -26,7 +26,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
     rollupOptions: {
+      external: [
+        '@safe-globalThis/safe-apps-provider',
+        '@safe-globalThis/safe-apps-sdk'
+      ],
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
