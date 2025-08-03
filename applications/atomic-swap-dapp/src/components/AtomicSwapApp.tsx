@@ -4,15 +4,17 @@ import { motion } from 'framer-motion'
 import { Zap, ArrowLeftRight, Shield, Layers, Activity, Globe, Sparkles } from 'lucide-react'
 import { useAtomicSwap } from '@stores/AtomicSwapStore'
 import { AtomicVaultCreator, BilateralSwapInterface, VaultDashboard, SwapProgressTracker } from './index'
+import FusionPlusSwapInterface from './FusionPlusSwapInterface'
 
 const AtomicSwapApp: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'create' | 'swap' | 'dashboard'>('create')
+  const [activeTab, setActiveTab] = useState<'create' | 'swap' | 'fusion'  | 'dashboard'>('fusion')
   const { currentSwap, isEthereumConnected, isSuiConnected } = useAtomicSwap()
 
   const tabs = [
+    { id: 'fusion', label: 'Fusion+ Swap', icon: Zap, gradient: 'from-yellow-500 to-red-500' },
+    { id: 'swap', label: 'Basic Swap', icon: ArrowLeftRight, gradient: 'from-amber-500 to-yellow-500' },
     { id: 'create', label: 'Create Vault', icon: Shield, gradient: 'from-orange-500 to-amber-500' },
-    { id: 'swap', label: 'Cross-Chain Swap', icon: ArrowLeftRight, gradient: 'from-amber-500 to-yellow-500' },
-    { id: 'dashboard', label: 'Dashboard', icon: Layers, gradient: 'from-yellow-500 to-orange-500' },
+    { id: 'dashboard', label: 'Dashboard', icon: Layers, gradient: 'from-red-500 to-orange-500' },
   ]
 
   return (
@@ -324,6 +326,7 @@ const AtomicSwapApp: React.FC = () => {
         >
           {activeTab === 'create' && <AtomicVaultCreator />}
           {activeTab === 'swap' && <BilateralSwapInterface />}
+          {activeTab === 'fusion' && <FusionPlusSwapInterface />}
           {activeTab === 'dashboard' && <VaultDashboard />}
         </motion.div>
       </main>
