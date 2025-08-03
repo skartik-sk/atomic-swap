@@ -1,364 +1,342 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
+// Ye imports jaruri hai, ERC20 ke liye aur custom security ke liye
 import {IERC20} from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAtomicVault} from "../interfaces/IAtomicVault.sol";
 import {CryptoCommitment} from "../security/CryptoCommitment.sol";
 import {TemporalGuard} from "../security/TemporalGuard.sol";
 
-/**
- * @title AtomicVault
- * @dev Core implementation of cross-chain atomic value storage
- * Advanced bilateral exchange infrastructure with enhanced security mechanisms
- * Implements sophisticated temporal validation and cryptographic commitment schemes
- * Optimized for high-throughput cross-chain value transfers with minimal gas consumption
- * @author Atomic Swap Protocol
- */
-contract AtomicVault is IAtomicVault {
-    using SafeERC20 for IERC20;
-    using CryptoCommitment for bytes32;
-    using TemporalGuard for uint256;
-    
+contract NotSoAtomicLocker is IAtomicVault {
+    using SafeERC20 for IERC20; // Safe transfer karne ke liye
+    using CryptoCommitment for bytes32; // Commitment check karne ke liye
+    using TemporalGuard for uint256; // Time check karne ke liye
+
     // ========== State Variables ==========
-    
-    /// @dev Wrapped Ethereum token contract reference
-    IERC20 public immutable wrappedEther;
-    
-    /// @dev Mapping from vault hash to vault entry data
-    mapping(bytes32 => VaultEntry) public atomicVaults;
-    
-    /// @dev Mapping from external trade reference to vault hash
-    mapping(bytes32 => bytes32) public externalRefToVault;
-    
-    /// @dev Mapping from vault hash to external trade reference
-    mapping(bytes32 => bytes32) public vaultToExternalRef;
 
-    /// @dev Total number of vaults created (for analytics)
-    uint256 public totalVaultsCreated;
-    
-    /// @dev Total number of successful claims (for analytics)
-    uint256 public totalSuccessfulClaims;
+    /// @dev
+    IERC20 public immutable etherToken;
 
-    // ========== Constructor ==========
-    
+    /// @dev
+    mapping(bytes32 => LockerInfo) public lockers;
+
+    /// @dev
+    mapping(bytes32 => bytes32) public refToLocker;
+
+    /// @dev
+    mapping(bytes32 => bytes32) public lockerToRef;
+
+    /// @dev
+    uint256 public lockersCount;
+
+    /// @dev
+    uint256 public claimsDone;
+
     /**
-     * @dev Initializes atomic vault with WETH reference
-     * @param _wrappedEther Address of WETH token contract
+     * @dev
+     * @param _etherToken
      */
-    constructor(address _wrappedEther) {
-        if (_wrappedEther == address(0)) {
-            revert InvalidAddress();
+    constructor(address _etherToken) {
+        if (_etherToken == address(0)) {
+            revert WrongAddress();
         }
-        wrappedEther = IERC20(_wrappedEther);
+        etherToken = IERC20(_etherToken);
     }
 
-    // ========== Core Functions ==========
-    
     /// @inheritdoc IAtomicVault
-    function establishAtomicVault(
-        uint256 assetAmount,
-        uint256 expirationTimestamp,
-        bytes32 cryptoCommitment,
-        address counterparty,
-        bytes32 externalTradeRef
-    ) external returns (bytes32 vaultHash, bytes32 externalRef) {
-        // Input validation
-        if (assetAmount == 0) {
-            revert InsufficientAssetBalance();
-        }
-        if (!expirationTimestamp.isReasonableTimestamp()) {
-            revert InvalidExpirationPeriod();
-        }
-        if (cryptoCommitment == bytes32(0)) {
-            revert InvalidCommitment();
-        }
-        if (counterparty == address(0)) {
-            revert InvalidAddress();
-        }
-        
-        // Generate unique vault identifier
-        vaultHash = keccak256(abi.encodePacked(
-            msg.sender,
-            counterparty,
-            assetAmount,
-            cryptoCommitment,
-            expirationTimestamp,
-            block.timestamp,
-            totalVaultsCreated
-        ));
-        
-        // Ensure vault doesn't already exist
-        if (atomicVaults[vaultHash].initiator != address(0)) {
-            revert VaultAlreadyExists();
-        }
+    function makeLocker(
+        uint256 tokenQty,
+        uint256 expiryTime,
+        bytes32 cryptCommitment,
+        address buddy,
+        bytes32 externalRef
+    ) external returns (bytes32 lockerHash, bytes32 outRef) {
+        // Ye check hai, asset zero na ho
+        if (tokenQty == 0) revert NotEnoughTokens();
+        // Time valid hai ya nahi, yaha check
+        if (!expiryTime.isReasonableTimestamp()) revert WrongExpiry();
+        // Commitment zero na ho, check
+        if (cryptCommitment == bytes32(0)) revert WrongCommitment();
+        // Buddy address valid ho
+        if (buddy == address(0)) revert WrongAddress();
 
-        // Verify sufficient allowance and transfer assets
-        if (wrappedEther.allowance(msg.sender, address(this)) < assetAmount) {
-            revert InsufficientAssetBalance();
-        }
-        
-        // Transfer assets to vault
-        wrappedEther.safeTransferFrom(msg.sender, address(this), assetAmount);
+        // Locker ka unique hash banao
+        lockerHash = keccak256(
+            abi.encodePacked(
+                msg.sender,
+                buddy,
+                tokenQty,
+                cryptCommitment,
+                expiryTime,
+                block.timestamp,
+                lockersCount
+            )
+        );
+        if (lockers[lockerHash].owner != address(0)) revert LockerExists();
 
-        // Create vault entry
-        atomicVaults[vaultHash] = VaultEntry({
-            vaultHash: vaultHash,
-            initiator: msg.sender,
-            counterparty: counterparty,
-            assetAmount: assetAmount,
-            cryptoCommitment: cryptoCommitment,
-            expirationTimestamp: expirationTimestamp,
-            externalTradeRef: externalTradeRef,
-            currentState: VaultState.Secured,
-            createdAt: block.timestamp,
-            settledAt: 0
+        if (etherToken.allowance(msg.sender, address(this)) < tokenQty)
+            revert NotEnoughTokens();
+
+        etherToken.safeTransferFrom(msg.sender, address(this), tokenQty);
+
+        // Locker create karo
+        lockers[lockerHash] = LockerInfo({
+            lockerHash: lockerHash,
+            owner: msg.sender,
+            buddy: buddy,
+            tokenQty: tokenQty,
+            cryptCommitment: cryptCommitment,
+            expiryTime: expiryTime,
+            externalRef: externalRef,
+            status: LockerStatus.Locked,
+            createdOn: block.timestamp,
+            closedOn: 0
         });
 
-        // Create bidirectional mappings
-        externalRefToVault[externalTradeRef] = vaultHash;
-        vaultToExternalRef[vaultHash] = externalTradeRef;
-        
-        // Update analytics
-        totalVaultsCreated++;
-        
-        // Set return values
-        externalRef = externalTradeRef;
-        
-        emit VaultEstablished(
-            vaultHash,
-            externalTradeRef,
+        refToLocker[externalRef] = lockerHash;
+        lockerToRef[lockerHash] = externalRef;
+
+        lockersCount++;
+        ro outRef = externalRef;
+
+        emit LockerMade(
+            lockerHash,
+            externalRef,
             msg.sender,
-            assetAmount,
-            expirationTimestamp,
-            cryptoCommitment,
-            counterparty
+            tokenQty,
+            expiryTime,
+            cryptCommitment,
+            buddy
         );
     }
 
     /// @inheritdoc IAtomicVault
-    function claimVaultAssets(
-        bytes32 vaultHash,
-        bytes32 secretReveal
-    ) external {
-        VaultEntry storage vault = atomicVaults[vaultHash];
-        
-        // Validate vault exists and state
-        if (vault.initiator == address(0)) {
-            revert VaultNotFound();
-        }
-        if (vault.currentState != VaultState.Secured) {
-            revert VaultNotSecured();
-        }
-        if (vault.expirationTimestamp.isExpired()) {
-            revert VaultExpired();
-        }
-        if (msg.sender != vault.counterparty) {
-            revert UnauthorizedCounterparty();
-        }
-        
-        // Verify cryptographic commitment
-        if (!secretReveal.verifyCommitment(vault.cryptoCommitment)) {
-            revert InvalidSecretReveal();
-        }
-        
-        // Update vault state
-        vault.currentState = VaultState.Claimed;
-        vault.settledAt = block.timestamp;
-        
-        // Transfer assets to claimant
-        wrappedEther.safeTransfer(msg.sender, vault.assetAmount);
-        
-        // Update analytics
-        totalSuccessfulClaims++;
-        
-        emit VaultClaimed(
-            vaultHash,
-            vault.externalTradeRef,
+    function unlockTokens(bytes32 lockerHash, bytes32 secretCode) external {
+        LockerInfo storage locker = lockers[lockerHash];
+
+        if (locker.owner == address(0)) revert LockerNotFound();
+        if (locker.status != LockerStatus.Locked) revert LockerNotLocked();
+        if (locker.expiryTime.isExpired()) revert LockerExpired();
+        if (msg.sender != locker.buddy) revert NotBuddy();
+
+        if (!secretCode.verifyCommitment(locker.cryptCommitment))
+            revert WrongSecret();
+
+        locker.status = LockerStatus.Unlocked;
+        locker.closedOn = block.timestamp;
+
+        etherToken.safeTransfer(msg.sender, locker.tokenQty);
+
+        claimsDone++;
+
+        emit LockerUnlocked(
+            lockerHash,
+            locker.externalRef,
             msg.sender,
-            vault.assetAmount,
-            secretReveal,
+            locker.tokenQty,
+            secretCode,
             block.timestamp
         );
     }
 
     /// @inheritdoc IAtomicVault
-    function terminateExpiredVault(bytes32 vaultHash) external {
-        VaultEntry storage vault = atomicVaults[vaultHash];
-        
-        // Validate vault exists and state
-        if (vault.initiator == address(0)) {
-            revert VaultNotFound();
-        }
-        if (vault.currentState != VaultState.Secured) {
-            revert VaultAlreadySettled();
-        }
-        if (!vault.expirationTimestamp.isExpired()) {
-            revert VaultStillActive();
-        }
-        
-        // Update vault state
-        vault.currentState = VaultState.Expired;
-        vault.settledAt = block.timestamp;
-        
-        emit VaultTerminated(
-            vaultHash,
-            vault.externalTradeRef,
-            vault.initiator
-        );
+    function forceCloseLocker(bytes32 lockerHash) external {
+        LockerInfo storage locker = lockers[lockerHash];
+
+        if (locker.owner == address(0)) revert LockerNotFound();
+        if (locker.status != LockerStatus.Locked) revert LockerAlreadyClosed();
+        if (!locker.expiryTime.isExpired()) revert LockerActive();
+
+        locker.status = LockerStatus.Expired;
+        locker.closedOn = block.timestamp;
+
+        emit LockerForceClosed(lockerHash, locker.externalRef, locker.owner);
     }
 
     /// @inheritdoc IAtomicVault
-    function recoverExpiredAssets(bytes32 vaultHash) external {
-        VaultEntry storage vault = atomicVaults[vaultHash];
-        
-        // Validate vault exists and state
-        if (vault.initiator == address(0)) {
-            revert VaultNotFound();
-        }
-        if (vault.currentState != VaultState.Expired) {
-            revert VaultNotExpired();
-        }
-        if (msg.sender != vault.initiator) {
-            revert UnauthorizedInitiator();
-        }
-        
-        // Update vault state
-        vault.currentState = VaultState.Terminated;
-        
-        // Return assets to initiator
-        wrappedEther.safeTransfer(msg.sender, vault.assetAmount);
-        
-        emit VaultRecovered(
-            vaultHash,
-            vault.externalTradeRef,
+    function getBackExpiredTokens(bytes32 lockerHash) external {
+        LockerInfo storage locker = lockers[lockerHash];
+
+        if (locker.owner == address(0)) revert LockerNotFound();
+        if (locker.status != LockerStatus.Expired) revert LockerNotExpired();
+        if (msg.sender != locker.owner) revert NotOwner();
+
+        locker.status = LockerStatus.Closed;
+
+        etherToken.safeTransfer(msg.sender, locker.tokenQty);
+
+        emit LockerTokensReturned(
+            lockerHash,
+            locker.externalRef,
             msg.sender,
-            vault.assetAmount
-        );
-    }
-
-    // ========== View Functions ==========
-    
-    /// @inheritdoc IAtomicVault
-    function getVaultDetails(bytes32 vaultHash) external view returns (
-        bytes32 vaultHashReturn,
-        bytes32 externalRef,
-        address initiator,
-        uint256 assetAmount,
-        uint256 expirationTimestamp,
-        bytes32 cryptoCommitment,
-        address counterparty,
-        VaultState currentState,
-        uint256 createdAt,
-        uint256 settledAt
-    ) {
-        VaultEntry memory vault = atomicVaults[vaultHash];
-        
-        if (vault.initiator == address(0)) {
-            revert VaultNotFound();
-        }
-        
-        return (
-            vault.vaultHash,
-            vault.externalTradeRef,
-            vault.initiator,
-            vault.assetAmount,
-            vault.expirationTimestamp,
-            vault.cryptoCommitment,
-            vault.counterparty,
-            vault.currentState,
-            vault.createdAt,
-            vault.settledAt
+            locker.tokenQty
         );
     }
 
     /// @inheritdoc IAtomicVault
-    function getVaultByExternalRef(bytes32 externalTradeRef) external view returns (bytes32) {
-        return externalRefToVault[externalTradeRef];
-    }
-    
-    /// @inheritdoc IAtomicVault
-    function canClaimVault(bytes32 vaultHash, address claimant) external view returns (bool) {
-        VaultEntry memory vault = atomicVaults[vaultHash];
-        
+    function lockerInfo(
+        bytes32 lockerHash
+    )
+        external
+        view
+        returns (
+            bytes32 hash,
+            bytes32 extRef,
+            address owner,
+            uint256 qty,
+            uint256 expiryTime,
+            bytes32 commitment,
+            address buddy,
+            LockerStatus status,
+            uint256 createdOn,
+            uint256 closedOn
+        )
+    {
+        LockerInfo memory locker = lockers[lockerHash];
+        if (locker.owner == address(0)) revert LockerNotFound();
+
         return (
-            vault.initiator != address(0) &&
-            vault.currentState == VaultState.Secured &&
-            vault.counterparty == claimant &&
-            vault.expirationTimestamp.isActive()
+            locker.lockerHash,
+            locker.externalRef,
+            locker.owner,
+            locker.tokenQty,
+            locker.expiryTime,
+            locker.cryptCommitment,
+            locker.buddy,
+            locker.status,
+            locker.createdOn,
+            locker.closedOn
         );
     }
-    
+
     /// @inheritdoc IAtomicVault
-    function getCurrentExchangeRate(bytes32 vaultHash) external view returns (uint256) {
-        VaultEntry memory vault = atomicVaults[vaultHash];
-        
-        if (vault.initiator == address(0)) {
-            revert VaultNotFound();
-        }
-        
-        // For basic atomic vault, rate is 1:1
-        // This can be overridden by inheriting contracts for dynamic pricing
+    function getLockerByRef(
+        bytes32 externalRef
+    ) external view returns (bytes32) {
+        return refToLocker[externalRef];
+    }
+
+    /// @inheritdoc IAtomicVault
+    function canUnlockLocker(
+        bytes32 lockerHash,
+        address unlocker
+    ) external view returns (bool) {
+        LockerInfo memory locker = lockers[lockerHash];
+        return (locker.owner != address(0) &&
+            locker.status == LockerStatus.Locked &&
+            locker.buddy == unlocker &&
+            locker.expiryTime.isActive());
+    }
+
+    /// @inheritdoc IAtomicVault
+    function getDummyRate(bytes32 lockerHash) external view returns (uint256) {
+        LockerInfo memory locker = lockers[lockerHash];
+        if (locker.owner == address(0)) revert LockerNotFound();
         return 1e18;
     }
-    
+
     /// @inheritdoc IAtomicVault
-    function isVaultExpired(bytes32 vaultHash) external view returns (bool) {
-        VaultEntry memory vault = atomicVaults[vaultHash];
-        
-        if (vault.initiator == address(0)) {
-            revert VaultNotFound();
-        }
-        
-        return vault.expirationTimestamp.isExpired();
-    }
-    
-    /// @inheritdoc IAtomicVault
-    function getVaultState(bytes32 vaultHash) external view returns (VaultState) {
-        VaultEntry memory vault = atomicVaults[vaultHash];
-        
-        if (vault.initiator == address(0)) {
-            revert VaultNotFound();
-        }
-        
-        return vault.currentState;
+    function isLockerExpired(bytes32 lockerHash) external view returns (bool) {
+        LockerInfo memory locker = lockers[lockerHash];
+        if (locker.owner == address(0)) revert LockerNotFound();
+        return locker.expiryTime.isExpired();
     }
 
-    // ========== Additional View Functions ==========
-    
-    /**
-     * @dev Gets total number of vaults created
-     * @return Total vaults created
-     */
-    function getTotalVaultsCreated() external view returns (uint256) {
-        return totalVaultsCreated;
-    }
-    
-    /**
-     * @dev Gets total number of successful claims
-     * @return Total successful claims
-     */
-    function getTotalSuccessfulClaims() external view returns (uint256) {
-        return totalSuccessfulClaims;
-    }
-    
-    /**
-     * @dev Gets vault creation timestamp
-     * @param vaultHash Unique vault identifier
-     * @return Creation timestamp
-     */
-    function getVaultCreationTime(bytes32 vaultHash) external view returns (uint256) {
-        VaultEntry memory vault = atomicVaults[vaultHash];
-        
-        if (vault.initiator == address(0)) {
-            revert VaultNotFound();
-        }
-        
-        return vault.createdAt;
+    /// @inheritdoc IAtomicVault
+    function getLockerStatus(
+        bytes32 lockerHash
+    ) external view returns (LockerStatus) {
+        LockerInfo memory locker = lockers[lockerHash];
+        if (locker.owner == address(0)) revert LockerNotFound();
+        return locker.status;
     }
 
-    // ========== Error Definitions ==========
-    
-    error InvalidAddress();
-    error InvalidCommitment();
+    /**
+     * @dev
+     */
+    function totalLockers() external view returns (uint256) {
+        return lockersCount;
+    }
+
+    /**
+     * @dev
+     */
+    function totalClaimsDone() external view returns (uint256) {
+        return claimsDone;
+    }
+
+    /**
+     * @dev
+     */
+    function getLockerCreation(
+        bytes32 lockerHash
+    ) external view returns (uint256) {
+        LockerInfo memory locker = lockers[lockerHash];
+        if (locker.owner == address(0)) revert LockerNotFound();
+        return locker.createdOn;
+    }
+
+    error WrongAddress();
+    error WrongCommitment();
+    error NotEnoughTokens();
+    error LockerExists();
+    error LockerNotFound();
+    error LockerNotLocked();
+    error LockerExpired();
+    error NotBuddy();
+    error WrongSecret();
+    error LockerAlreadyClosed();
+    error LockerActive();
+    error LockerNotExpired();
+    error NotOwner();
+
+    enum LockerStatus {
+        Locked,
+        Unlocked,
+        Expired,
+        Closed
+    }
+
+    struct LockerInfo {
+        bytes32 lockerHash;
+        address owner;
+        address buddy;
+        uint256 tokenQty;
+        bytes32 cryptCommitment;
+        uint256 expiryTime;
+        bytes32 externalRef;
+        LockerStatus status;
+        uint256 createdOn;
+        uint256 closedOn;
+    }
+
+    event LockerMade(
+        bytes32 lockerHash,
+        bytes32 externalRef,
+        address owner,
+        uint256 tokenQty,
+        uint256 expiryTime,
+        bytes32 cryptCommitment,
+        address buddy
+    );
+    event LockerUnlocked(
+        bytes32 lockerHash,
+        bytes32 externalRef,
+        address buddy,
+        uint256 tokenQty,
+        bytes32 secretCode,
+        uint256 timestamp
+    );
+    event LockerForceClosed(
+        bytes32 lockerHash,
+        bytes32 externalRef,
+        address owner
+    );
+    event LockerTokensReturned(
+        bytes32 lockerHash,
+        bytes32 externalRef,
+        address owner,
+        uint256 tokenQty
+    );
 }
