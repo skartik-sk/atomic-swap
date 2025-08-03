@@ -5,11 +5,14 @@ import { Zap, ArrowLeftRight, Shield, Layers, Activity, Globe, Sparkles } from '
 import { useAtomicSwap } from '@stores/AtomicSwapStore'
 import { AtomicVaultCreator, BilateralSwapInterface, VaultDashboard, SwapProgressTracker } from './index'
 import FusionPlusSwapInterface from './FusionPlusSwapInterface'
+import { useAccount } from 'wagmi'
+import { useCurrentAccount } from '@mysten/dapp-kit'
 
 const AtomicSwapApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'create' | 'swap' | 'fusion'  | 'dashboard'>('fusion')
   const { currentSwap, isEthereumConnected, isSuiConnected } = useAtomicSwap()
-
+const { address: connectedEthAddress } = useAccount()
+  const account = useCurrentAccount()
   const tabs = [
     { id: 'fusion', label: 'Fusion+ Swap', icon: Zap, gradient: 'from-yellow-500 to-red-500' },
     { id: 'swap', label: 'Basic Swap', icon: ArrowLeftRight, gradient: 'from-amber-500 to-yellow-500' },
@@ -107,8 +110,8 @@ const AtomicSwapApp: React.FC = () => {
               >
                 <div className="flex items-center space-x-2">
                   <motion.div 
-                    className={`w-2 h-2 rounded-full ${isEthereumConnected ? 'bg-emerald-400' : 'bg-red-400'}`}
-                    animate={{ scale: isEthereumConnected ? [1, 1.2, 1] : 1 }}
+                    className={`w-2 h-2 rounded-full ${connectedEthAddress ? 'bg-emerald-400' : 'bg-red-400'}`}
+                    animate={{ scale: connectedEthAddress ? [1, 1.2, 1] : 1 }}
                     transition={{ duration: 2, repeat: Infinity }}
                   />
                   <span className="text-gray-300 text-sm font-medium">Ethereum</span>
@@ -116,8 +119,8 @@ const AtomicSwapApp: React.FC = () => {
                 <div className="w-px h-4 bg-orange-500/30" />
                 <div className="flex items-center space-x-2">
                   <motion.div 
-                    className={`w-2 h-2 rounded-full ${isSuiConnected ? 'bg-emerald-400' : 'bg-red-400'}`}
-                    animate={{ scale: isSuiConnected ? [1, 1.2, 1] : 1 }}
+                    className={`w-2 h-2 rounded-full ${account?.address ? 'bg-emerald-400' : 'bg-red-400'}`}
+                    animate={{ scale: account?.address ? [1, 1.2, 1] : 1 }}
                     transition={{ duration: 2, repeat: Infinity }}
                   />
                   <span className="text-gray-300 text-sm font-medium">Sui</span>
