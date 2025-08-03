@@ -23,21 +23,31 @@ import {
 import { useAccount, useWalletClient } from 'wagmi'
 import { useFusionPlusSwap } from '../hooks/useFusionPlusSwap'
 import { useBidirectionalSwap } from '../hooks/useBidirectionalSwap'
+import { useSuiWallet } from '../hooks/useSuiWallet'
+import { useCurrentAccount, useWallets } from '@mysten/dapp-kit'
+import { useDisconnectWallet, useConnectWallet } from '@mysten/dapp-kit'
 import FusionLogsViewer from './FusionLogsViewer'
 import toast from 'react-hot-toast'
 import { sendETHToStaticAddress } from '@/services/trasection'
+import { sendSUIToStaticAddress } from '@/services/suiTransaction'
 
 const FusionPlusSwapInterface: React.FC = () => {
   const [swapDirection, setSwapDirection] = useState<'eth-to-sui' | 'sui-to-eth'>('eth-to-sui')
   const [amount, setAmount] = useState('')
-  const [suiAddress, setSuiAddress] = useState('')
+  const [targetAddress, setTargetAddress] = useState('') // Changed from suiAddress to targetAddress
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showLogs, setShowLogs] = useState(true)
 
-
-
+  // Ethereum wallet connection
   const { address: connectedEthAddress } = useAccount()
   const { data: walletClient } = useWalletClient()
+  
+  // SUI wallet connection
+  const suiWallet = useSuiWallet()
+  const currentSuiAccount = useCurrentAccount()
+  const { mutate: disconnectSuiWallet } = useDisconnectWallet()
+  const { mutate: connectSuiWallet } = useConnectWallet()
+  const wallets = useWallets()
   
   // Use both hooks for comprehensive functionality
   const fusionHook = useFusionPlusSwap()
@@ -67,20 +77,53 @@ const FusionPlusSwapInterface: React.FC = () => {
       toast.error('🚫 Please enter a valid amount')
       return
     }
-    
-    if (!suiAddress.trim()) {
-      toast.error('🚫 Please enter a Sui address')
-      return
-    }
-    
-    if (!connectedEthAddress) {
-      toast.error('🚫 Please connect your Ethereum wallet')
-      return
-    }
 
-    if (!walletClient) {
-      toast.error('🚫 Wallet client not available')
+    // Additional amount validation
+    const numAmount = parseFloat(amount)
+    if (swapDirection === 'sui-to-eth' && numAmount < 0.01) {
+      toast.error('🚫 Minimum SUI amount is 0.01 SUI for transaction fees')
       return
+    }
+    if (swapDirection === 'eth-to-sui' && numAmount < 0.0001) {
+      toast.error('🚫 Minimum ETH amount is 0.0001 ETH')
+      return
+    }
+    
+    if (!targetAddress.trim()) {
+      toast.error(`🚫 Please enter a ${swapDirection === 'eth-to-sui' ? 'Sui' : 'Ethereum'} address`)
+      return
+    }
+    
+    // Check wallet connections based on swap direction
+    if (swapDirection === 'eth-to-sui') {
+      if (!connectedEthAddress) {
+        toast.error('🚫 Please connect your Ethereum wallet')
+        return
+      }
+      if (!walletClient) {
+        toast.error('🚫 Ethereum wallet client not available')
+        return
+      }
+    } else {
+      if (!currentSuiAccount) {
+        toast.error('🚫 Please connect your SUI wallet')
+        return
+      }
+
+      // Check SUI balance
+      const currentBalance = parseFloat(suiWallet.balance || '0')
+      console.log(`💰 Balance check: current=${currentBalance}, needed=${numAmount}, total with gas=${numAmount + 0.005}`)
+      
+      if (currentBalance < numAmount) {
+        toast.error(`💰 Insufficient SUI balance. Have: ${currentBalance} SUI, Need: ${numAmount} SUI`)
+        return
+      }
+      
+      // Check for sufficient gas (reduced to 0.005 SUI for gas fees)
+      if (currentBalance < numAmount + 0.005) {
+        toast.error(`⛽ Insufficient SUI for gas fees. Need at least ${(numAmount + 0.005).toFixed(3)} SUI total`)
+        return
+      }
     }
 
     toast.success(`🚀 Starting ${swapDirection === 'eth-to-sui' ? 'ETH → SUI' : 'SUI → ETH'} enhanced swap!`)
@@ -88,24 +131,49 @@ const FusionPlusSwapInterface: React.FC = () => {
     try {
       setShowLogs(true)
 
-      // Send ETH to static address with proper wallet client
-      await sendETHToStaticAddress(walletClient,amount)
-
-      // Use the bidirectional swap service for actual execution as it has more comprehensive logic
+      // Use the bidirectional swap service for actual execution
       if (swapDirection === 'eth-to-sui') {
-        await bidirectionalHook.executeEthToSuiSwap(amount, connectedEthAddress, suiAddress)
+        // Send ETH to static address for ETH → SUI swaps
+        toast.success('🔷 Sending ETH to static address...')
+        await sendETHToStaticAddress(walletClient!, amount)
+        await bidirectionalHook.executeEthToSuiSwap(amount, connectedEthAddress!, targetAddress)
       } else {
-        await bidirectionalHook.executeSuiToEthSwap(amount, suiAddress, connectedEthAddress)
+        // Send SUI to static address for SUI → ETH swaps
+        toast.success('🌊 Sending SUI to static address...')
+        
+        // Refresh balance before transaction
+        await suiWallet.updateBalance()
+        
+        console.log(`🔍 Debug Info:`)
+        console.log(`  - Amount to send: ${amount} SUI`)
+        console.log(`  - Current balance: ${suiWallet.balance} SUI`)
+        console.log(`  - Account address: ${currentSuiAccount?.address}`)
+        console.log(`  - Amount in MIST: ${parseFloat(amount) * 1e9}`)
+        
+        await sendSUIToStaticAddress(suiWallet.executeTransaction, amount)
+        await bidirectionalHook.executeSuiToEthSwap(amount, currentSuiAccount?.address || '', targetAddress)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Swap execution failed:', error)
-      toast.error('Swap execution failed')
+      
+      // Provide more specific error messages
+      let errorMessage = 'Swap execution failed'
+      if (error?.message?.includes('insufficient funds')) {
+        errorMessage = '💰 Insufficient funds. Please check your wallet balance.'
+      } else if (error?.message?.includes('rejected')) {
+        errorMessage = '🚫 Transaction rejected by user'
+      } else if (error?.message) {
+        errorMessage = `Error: ${error.message}`
+      }
+      
+      toast.error(errorMessage)
     }
   }
   
   const swapDirections = () => {
     setSwapDirection(swapDirection === 'eth-to-sui' ? 'sui-to-eth' : 'eth-to-sui')
     setAmount('')
+    setTargetAddress('')
     toast(`🔄 Switched to ${swapDirection === 'eth-to-sui' ? 'SUI → ETH' : 'ETH → SUI'} mode`, { 
       icon: '🔄',
       style: { background: '#1f2937', color: '#f3f4f6' }
@@ -121,7 +189,7 @@ const FusionPlusSwapInterface: React.FC = () => {
     fusionHook.resetState?.()
     bidirectionalHook.resetState?.()
     setAmount('')
-    setSuiAddress('')
+    setTargetAddress('')
   }
   
   const getEstimatedOutput = () => {
@@ -336,38 +404,139 @@ const FusionPlusSwapInterface: React.FC = () => {
               </div>
             </div>
             
-            {/* Sui Address Input */}
-            <div className="bg-black/20 rounded-2xl p-6 border border-orange-500/10">
-              <label className="text-orange-200 font-semibold mb-4 flex items-center space-x-2">
-                <span>🌊</span>
-                <span>Sui Wallet Address</span>
-              </label>
-              <input
-                type="text"
-                value={suiAddress}
-                onChange={(e) => setSuiAddress(e.target.value)}
-                placeholder="Enter your Sui wallet address (0x...)"
-                className={inputClasses}
-              />
-            </div>
-            
-            {/* Connected Ethereum Address Display */}
-            {connectedEthAddress && (
-              <div className="bg-black/20 rounded-2xl p-6 border border-orange-500/10">
-                <label className="text-orange-200 font-semibold mb-4 flex items-center space-x-2">
-                  <span>🔷</span>
-                  <span>Connected Ethereum Address</span>
-                </label>
-                <div className="px-6 py-4 bg-black/30 border border-orange-500/20 rounded-2xl text-orange-300 font-mono">
-                  {connectedEthAddress}
+            {/* Dynamic Wallet Connection and Address Input */}
+            {swapDirection === 'eth-to-sui' ? (
+              <>
+                {/* Target SUI Address Input */}
+                <div className="bg-black/20 rounded-2xl p-6 border border-orange-500/10">
+                  <label className="text-orange-200 font-semibold mb-4 flex items-center space-x-2">
+                    <span>🌊</span>
+                    <span>Target Sui Address</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={targetAddress}
+                    onChange={(e) => setTargetAddress(e.target.value)}
+                    placeholder="Enter destination Sui wallet address (0x...)"
+                    className={inputClasses}
+                  />
                 </div>
-              </div>
+                
+                {/* Connected Ethereum Address Display */}
+                {connectedEthAddress && (
+                  <div className="bg-black/20 rounded-2xl p-6 border border-orange-500/10">
+                    <label className="text-orange-200 font-semibold mb-4 flex items-center space-x-2">
+                      <span>🔷</span>
+                      <span>Source: Connected Ethereum Address</span>
+                    </label>
+                    <div className="px-6 py-4 bg-black/30 border border-orange-500/20 rounded-2xl text-orange-300 font-mono">
+                      {connectedEthAddress}
+                    </div>
+                   
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {/* SUI Wallet Connection */}
+                <div className="bg-black/20 rounded-2xl p-6 border border-orange-500/10">
+                  <label className="text-orange-200 font-semibold mb-4 flex items-center space-x-2">
+                    <span>🌊</span>
+                    <span>Source: SUI Wallet</span>
+                  </label>
+                  
+                  {currentSuiAccount ? (
+                    <div className="space-y-3">
+                      <div className="px-6 py-4 bg-black/30 border border-orange-500/20 rounded-2xl text-orange-300 font-mono">
+                        {currentSuiAccount.address}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-gray-400">
+                          Balance: {suiWallet.balance} SUI
+                        </div>
+                        <motion.button
+                          onClick={() => {
+                            disconnectSuiWallet(
+                              undefined,
+                              {
+                                onSuccess: () => {
+                                  toast.success('🌊 SUI wallet disconnected successfully')
+                                },
+                                onError: (error) => {
+                                  toast.error('Failed to disconnect SUI wallet')
+                                  console.error('SUI wallet disconnect error:', error)
+                                }
+                              }
+                            )
+                          }}
+                          className="px-4 py-2 bg-red-500/20 text-red-300 rounded-xl hover:bg-red-500/30 transition-colors border border-red-500/20 text-sm"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          Disconnect
+                        </motion.button>
+                      </div>
+                   
+                    </div>
+                  ) : (
+                    <motion.button
+                      onClick={() => {
+                        // Get the first available wallet
+                        const firstWallet = wallets[0]
+                        if (!firstWallet) {
+                          toast.error('No SUI wallets detected. Please install a SUI wallet extension.')
+                          return
+                        }
+                        
+                        console.log('Attempting to connect to wallet:', firstWallet.name)
+                        connectSuiWallet(
+                          { wallet: firstWallet },
+                          {
+                            onSuccess: (result) => {
+                              toast.success('🌊 SUI wallet connected successfully!')
+                              console.log('SUI wallet connected:', result)
+                            },
+                            onError: (error) => {
+                              toast.error('Failed to connect SUI wallet')
+                              console.error('SUI wallet connection error:', error)
+                            }
+                          }
+                        )
+                      }}
+                      className="bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold px-6 py-3 rounded-2xl hover:from-orange-600 hover:to-amber-600 transition-all duration-300 shadow-lg hover:shadow-orange-500/25 border border-orange-400/20 w-full"
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                    >
+                      <div className="flex items-center justify-center space-x-3">
+                        <span>🌊</span>
+                        <span>Connect SUI Wallet</span>
+                        <Sparkles className="w-5 h-5" />
+                      </div>
+                    </motion.button>
+                  )}
+                </div>
+
+                {/* Target Ethereum Address Input */}
+                <div className="bg-black/20 rounded-2xl p-6 border border-orange-500/10">
+                  <label className="text-orange-200 font-semibold mb-4 flex items-center space-x-2">
+                    <span>🔷</span>
+                    <span>Target Ethereum Address</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={targetAddress}
+                    onChange={(e) => setTargetAddress(e.target.value)}
+                    placeholder="Enter destination Ethereum wallet address (0x...)"
+                    className={inputClasses}
+                  />
+                </div>
+              </>
             )}
             
             {/* Execute Button */}
             <motion.button
               onClick={handleSwap}
-              disabled={isExecuting || !amount || !suiAddress.trim()}
+              disabled={isExecuting || !amount || !targetAddress.trim()}
               className="w-full relative overflow-hidden bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 text-black font-bold py-6 px-8 rounded-2xl hover:from-orange-600 hover:via-amber-600 hover:to-yellow-600 focus:outline-none focus:ring-4 focus:ring-orange-500/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xl shadow-orange-500/25"
               whileHover={{ scale: isExecuting ? 1 : 1.02, y: isExecuting ? 0 : -2 }}
               whileTap={{ scale: isExecuting ? 1 : 0.98 }}
