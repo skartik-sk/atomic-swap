@@ -19,7 +19,7 @@ Atomic Swap Protocol is a sophisticated cross-chain atomic swap system that enab
 - **⚡ Gas Optimized**: Efficient contract designs for minimal transaction costs
 - **🧪 Battle Tested**: Extensive test coverage and security audits
 
-## 🏗️ Architecture
+## Folders strucutre
 
 ```
 atomic_swap/
@@ -30,6 +30,28 @@ atomic_swap/
 ├── toolkit/            # Development and verification tools
 └── README.md
 ```
+# Atomic Swap (Testnet Edition) - Folders & Architecture Breakdown
+
+
+- **protocols/**: The backbone of Atomic Swap’s blockchain magic.  
+  - **ethereum_side/**: Ethereum’s smart contract arsenal, powered by Solidity:  
+    - `AtomicVault`: Locks assets with ironclad cryptographic commitments for trustless swaps.  
+    - `InterchainOrderBook`: Orchestrates cross-chain trades, syncing Sepolia with Sui Testnet.  
+    - `PriceDiscoveryEngine`: Drives dynamic pricing via Dutch auctions, optimized with **1inch Fusion+** mechanics.  
+    - `ValidatorNetwork`: Manages decentralized validators for secure, trustless consensus.  
+    - Crypto/security libraries: Robust hash commitments (SHA-256) and timelock guards for bulletproof security.  
+  - **sui_side/**: Sui’s Move-based modules, built for high-throughput swaps:  
+    - `interchain_vault_protocol`: Core logic for Sui’s vault, locking assets securely.  
+    - `cryptographic_proof`: Verifies commitments for trustless execution.  
+    - `temporal_validation`: Enforces time-based security with timelocks.  
+    - `bilateral_swap_examples`: Sample scripts showcasing P2P swap flows.  
+- **applications/**: User-facing tools to interact with the protocol:  
+  - **atomic-swap-dapp/**: Slick web-based dApp (React, Wagmi, RainbowKit) for seamless swap initiation, integrated with **1inch resolvers** for optimal execution.  
+  - **atomic-swap-demo/**: CLI tool for devs to dive deep into protocol mechanics via interactive demos.  
+- **toolkit/**: Dev-friendly SDKs and utilities for integrating, testing, and verifying cross-chain states between Sepolia and Sui Testnet.  
+- [**README.md**](http://readme.md/): The go-to guide with a high-level overview of the protocol’s architecture and setup.
+
+---
 
 ### Protocol Components
 
