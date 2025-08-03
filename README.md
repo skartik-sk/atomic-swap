@@ -30,9 +30,6 @@ atomic_swap/
 ├── toolkit/            # Development and verification tools
 └── README.md
 ```
-# Atomic Swap (Testnet Edition) - Folders & Architecture Breakdown
-
-
 - **protocols/**: The backbone of Atomic Swap’s blockchain magic.  
   - **ethereum_side/**: Ethereum’s smart contract arsenal, powered by Solidity:  
     - `AtomicVault`: Locks assets with ironclad cryptographic commitments for trustless swaps.  
